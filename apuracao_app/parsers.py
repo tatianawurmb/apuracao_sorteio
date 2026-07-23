@@ -88,7 +88,8 @@ class SorteioData:
 
 @dataclass
 class ComercializadosData:
-    cartelas: List[Tuple[str, int]] = field(default_factory=list)  # (certificado, mask de dezenas)
+    # cada cartela: (certificado, numero_sorte, mask de dezenas)
+    cartelas: List[Tuple[str, str, int]] = field(default_factory=list)
     total_titulos: int = 0
     versao_layout: str = ""  # versão informada no header do próprio arquivo, quando presente
     avisos: List[str] = field(default_factory=list)
@@ -211,11 +212,19 @@ def parse_sorteio(arquivo: Arquivo) -> SorteioData:
 def parse_comercializados(arquivo: Arquivo) -> ComercializadosData:
     """Lê o arquivo de comercializados e retorna cartelas + totais + avisos de integridade.
 
-    cartelas: lista de (certificado, mask) — uma entrada por cartela, onde mask é um
-    bitmask das 20 dezenas (bit d ligado para cada dezena d). Campo 5 = certificado;
-    qualquer campo com exatamente 40 dígitos é tratado como uma cartela — um
-    certificado pode ter 1 ou mais cartelas, e o número/posição dos campos varia
-    entre versões do arquivo.
+    cartelas: lista de (certificado, numero_sorte, mask) — uma entrada por cartela, onde
+    mask é um bitmask das 20 dezenas (bit d ligado para cada dezena d).
+
+    Layout dos campos (delimitados por ';'), verificado com dados reais:
+    - campo 3 (índice 2) = Título/Número Certificado — o que corresponde ao 'certificado'
+      da Ata de Sorteio;
+    - cada cartela é um campo de exatamente 40 dígitos (20 dezenas); o campo imediatamente
+      antes de cada cartela é o Número da Sorte / Proposta daquela cartela;
+    - um título pode ter 1 ou mais cartelas, e o número/posição dos campos varia entre
+      versões do arquivo.
+
+    (Obs.: em alguns arquivos o certificado e o número da sorte coincidem; em outros
+    diferem — por isso é essencial ler cada um do seu campo próprio.)
 
     total_titulos: quantidade de registros de detalhe ('D'), ou seja, títulos
     comercializados. Valida contagens do header (campo 5, quando preenchido) e do
@@ -242,15 +251,16 @@ def parse_comercializados(arquivo: Arquivo) -> ComercializadosData:
             campos = linha.split(";")
             if len(campos) < 8:
                 continue
-            certificado = campos[4].strip()
+            certificado = campos[2].strip()  # Título/Número Certificado
             for i in range(7, len(campos), 2):
                 bloco = campos[i].strip()
                 if len(bloco) != 40 or not bloco.isdigit():
                     continue  # não é um bloco de dezenas válido (cartela ausente, ou outro campo do layout)
+                numero_sorte = campos[i - 1].strip()  # campo imediatamente antes da cartela
                 mask = 0
                 for j in range(0, 40, 2):
                     mask |= 1 << int(bloco[j:j + 2])
-                dados.cartelas.append((certificado, mask))
+                dados.cartelas.append((certificado, numero_sorte, mask))
         elif tipo == "T":
             campos = linha.split(";")
             if len(campos) > 1 and campos[1].strip().isdigit():

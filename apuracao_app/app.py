@@ -15,8 +15,11 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+from _encerramento_automatico import iniciar_se_necessario as _iniciar_vigia_encerramento
 from apuracao import apurar_extracao, validar_extracao
 from parsers import ParseError, extrair_edicao, parse_comercializados, parse_sorteio
+
+_iniciar_vigia_encerramento()  # encerra o processo sozinho quando o navegador fecha
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FOLDER = os.path.dirname(APP_DIR)
@@ -84,9 +87,12 @@ def _nome_arquivo(source) -> str:
 
 
 @st.cache_data(show_spinner=False)
-def _comercializados_do_caminho(caminho: str, mtime: float, tamanho: int):
+def _comercializados_do_caminho(caminho: str, mtime: float, tamanho: int, _esquema: int = 2):
     """Cache da leitura do arquivo grande, invalidado quando o arquivo muda no disco
-    (mtime/tamanho entram na chave do cache). Só usado no modo 'Apontar pasta'."""
+    (mtime/tamanho entram na chave do cache). Só usado no modo 'Apontar pasta'.
+
+    `_esquema`: incrementar sempre que o formato retornado por parse_comercializados
+    mudar — o st.cache_data só invalida pelo código DESTA função, não das chamadas."""
     return parse_comercializados(caminho)
 
 
@@ -133,7 +139,7 @@ def _gerar_excel(resultados: dict, header: dict, edicao: str,
     ws = wb.active
     ws.title = "Apuração"
     ws.sheet_view.showGridLines = False
-    for col, largura in {"A": 2.5, "B": 9, "C": 20, "D": 24, "E": 24, "F": 36}.items():
+    for col, largura in {"A": 2.5, "B": 6, "C": 18, "D": 18, "E": 26, "F": 34}.items():
         ws.column_dimensions[col].width = largura
 
     def linha_mesclada(row, texto, *, col_ini=2, col_fim=6, fonte=None, cor_fundo=None,
@@ -231,33 +237,33 @@ def _gerar_excel(resultados: dict, header: dict, edicao: str,
             )
         else:
             detalhes = []
-            if validacao["faltando"]:
-                detalhes.append("não encontrados: " + ", ".join(validacao["faltando"]))
-            if validacao["extras"]:
-                detalhes.append("fora do gabarito: " + ", ".join(validacao["extras"]))
+            if validacao["cert_faltando"]:
+                detalhes.append("certificados da Ata não encontrados: " + ", ".join(validacao["cert_faltando"]))
+            if validacao["cert_extra"]:
+                detalhes.append("apurados ausentes na Ata: " + ", ".join(validacao["cert_extra"]))
             linha_mesclada(
                 linha,
-                "⚠ Divergência em relação ao gabarito da Ata de Sorteio — " + "; ".join(detalhes),
+                "⚠ Divergência em relação à Ata de Sorteio — " + "; ".join(detalhes),
                 fonte=Font(size=10, bold=True, color=AMBAR_TXT), cor_fundo=AMBAR,
                 altura=30, alinhamento=wrap, com_borda=True,
             )
         linha += 2
 
         if vencedoras:
-            for c, titulo in ((2, "Nº"), (3, "Certificado contemplado")):
+            for c, titulo in ((2, "Nº"), (3, "Certificado"), (4, "Número da sorte")):
                 cel = ws.cell(row=linha, column=c, value=titulo)
                 cel.font = Font(bold=True, size=10, color=BRANCO)
                 cel.fill = fundo(AZUL)
                 cel.border = borda
                 cel.alignment = centro
-            for c in range(4, 7):
+            for c in range(5, 7):
                 cel = ws.cell(row=linha, column=c)
                 cel.fill = fundo(AZUL)
                 cel.border = borda
-            cel = ws.cell(row=linha, column=4, value="Dezenas da cartela")
+            cel = ws.cell(row=linha, column=5, value="Dezenas da cartela")
             cel.font = Font(bold=True, size=10, color=BRANCO)
             cel.alignment = centro
-            ws.merge_cells(start_row=linha, start_column=4, end_row=linha, end_column=6)
+            ws.merge_cells(start_row=linha, start_column=5, end_row=linha, end_column=6)
             ws.row_dimensions[linha].height = 17
             linha += 1
             for n, v in enumerate(vencedoras, start=1):
@@ -269,10 +275,13 @@ def _gerar_excel(resultados: dict, header: dict, edicao: str,
                 cel = ws.cell(row=linha, column=3, value=v.certificado)
                 cel.alignment = centro
                 cel.font = Font(size=10, bold=True)
-                cel = ws.cell(row=linha, column=4, value=_fmt_dezenas(v.dezenas))
+                cel = ws.cell(row=linha, column=4, value=v.numero_sorte)
+                cel.alignment = centro
+                cel.font = Font(size=10)
+                cel = ws.cell(row=linha, column=5, value=_fmt_dezenas(v.dezenas))
                 cel.font = Font(size=10)
                 cel.alignment = wrap
-                ws.merge_cells(start_row=linha, start_column=4, end_row=linha, end_column=6)
+                ws.merge_cells(start_row=linha, start_column=5, end_row=linha, end_column=6)
                 ws.row_dimensions[linha].height = 16
                 linha += 1
         else:
@@ -446,7 +455,8 @@ if resultados_atuais:
 
             if vencedoras:
                 df = pd.DataFrame(
-                    [{"Certificado": v.certificado, "Dezenas": _fmt_dezenas(v.dezenas)} for v in vencedoras]
+                    [{"Certificado": v.certificado, "Número da sorte": v.numero_sorte,
+                      "Dezenas": _fmt_dezenas(v.dezenas)} for v in vencedoras]
                 )
                 st.dataframe(df, width="stretch", hide_index=True)
             else:
@@ -454,20 +464,20 @@ if resultados_atuais:
 
             if validacao["ok"]:
                 st.success(
-                    f"✅ Validação: bate com o gabarito da Ata de Sorteio "
+                    f"✅ Validação: os certificados apurados batem com a Ata de Sorteio "
                     f"({validacao['qtd_esperada']} certificado(s))."
                 )
             else:
-                st.warning("⚠️ Divergência em relação ao gabarito da Ata de Sorteio.")
-                if validacao["faltando"]:
+                st.warning("⚠️ Divergência em relação à Ata de Sorteio.")
+                if validacao["cert_faltando"]:
                     st.write(
-                        "Certificados esperados (gabarito) e **não encontrados** pelo programa: "
-                        + ", ".join(validacao["faltando"])
+                        "Certificados da Ata **não encontrados** pelo programa: "
+                        + ", ".join(validacao["cert_faltando"])
                     )
-                if validacao["extras"]:
+                if validacao["cert_extra"]:
                     st.write(
-                        "Certificados encontrados pelo programa e **ausentes** no gabarito: "
-                        + ", ".join(validacao["extras"])
+                        "Certificados apurados e **ausentes na Ata**: "
+                        + ", ".join(validacao["cert_extra"])
                     )
 
     st.subheader("3. Exportar")
