@@ -11,7 +11,15 @@ font = "sans serif"
 # pois o modo "Apontar pasta" permite ler arquivos da máquina.
 address = "localhost"
 port = 8510
-headless = true
+# headless=false: o Streamlit abre o navegador sozinho quando o servidor fica
+# pronto. Mantemos false de propósito — em headless=true o Streamlit faz uma
+# chamada HTTP externa (checkip.amazonaws.com) a cada início só para descobrir o
+# IP externo, o que numa VPN corporativa trava alguns segundos e bate num
+# endpoint externo desnecessário.
+headless = false
+# Não mostrar o prompt de e-mail na primeira execução (senão o app trava no
+# terminal esperando o usuário digitar). Substitui a necessidade do headless.
+showEmailPrompt = false
 
 [browser]
 # Não enviar estatísticas de uso para servidores externos (ambiente corporativo).
