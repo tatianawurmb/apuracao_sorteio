@@ -15,8 +15,11 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+from _encerramento_automatico import iniciar_se_necessario as _iniciar_vigia_encerramento
 from apuracao import apurar_extracao, validar_extracao
 from parsers import ParseError, extrair_edicao, parse_comercializados, parse_sorteio
+
+_iniciar_vigia_encerramento()  # encerra o processo sozinho quando o navegador fecha
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_FOLDER = os.path.dirname(APP_DIR)

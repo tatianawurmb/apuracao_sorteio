@@ -27,8 +27,9 @@ precisa de internet para funcionar.
    rodando em segundo plano **sem manter nenhuma janela aberta**. Se o navegador não
    abrir, digite esse endereço — ou dê outro duplo clique no `Iniciar Apuracao.bat`,
    que apenas reabre a página quando o app já está ativo.
-5. Para **encerrar** o app: dê um duplo clique em **`Encerrar Apuracao.bat`**.
-   O app continua ativo até você encerrar (ou reiniciar o computador).
+5. Para **encerrar**, basta **fechar todas as abas/janelas do navegador** que estejam
+   com o app aberto — ele se desliga sozinho cerca de 20-25 segundos depois. Se quiser
+   encerrar na hora (sem esperar), dê um duplo clique em **`Encerrar Apuracao.bat`**.
 
 Nas próximas vezes, basta dar duplo clique no `Iniciar Apuracao.bat` de novo —
 a instalação só acontece uma vez.
@@ -130,6 +131,7 @@ automaticamente.
 | "A porta 8510 já está em uso" | Feche outras janelas do app, ou edite a linha `set PORTA=8510` no `.bat` para outra porta (ex: 8511). |
 | Nenhum arquivo aparece nos menus | Confirme que o caminho da pasta está correto e que os arquivos terminam em `.txt` com "sorteio" / "comercializad" no nome. |
 | A instalação falhou na primeira execução | Use o **pacote autocontido** (não depende da internet corporativa). Se persistir, envie o texto da janela preta para o suporte. |
+| Fechei o navegador mas o app parece continuar rodando | O encerramento automático leva ~20-25 segundos — aguarde um pouco. Se depois disso ainda estiver ativo, use o `Encerrar Apuracao.bat` para desligar na hora. |
 
 ---
 
