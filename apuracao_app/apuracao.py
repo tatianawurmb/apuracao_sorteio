@@ -11,43 +11,46 @@ from parsers import dezenas_de_mask, mask_de_dezenas
 @dataclass
 class CartelaVencedora:
     certificado: str
+    numero_sorte: str
     dezenas: Tuple[int, ...]  # ordenadas
 
 
 def apurar_extracao(
-    dezenas_sorteadas: frozenset, cartelas: Iterable[Tuple[str, int]]
+    dezenas_sorteadas: frozenset, cartelas: Iterable[Tuple[str, str, int]]
 ) -> List[CartelaVencedora]:
-    """cartelas: iterável de (certificado, mask_de_dezenas_da_cartela).
+    """cartelas: iterável de (certificado, numero_sorte, mask_de_dezenas_da_cartela).
     Uma cartela é vencedora quando TODAS as suas dezenas estão nas dezenas sorteadas —
     em bitmask, quando `mask & sorteadas == mask`.
     """
     mask_sorteadas = mask_de_dezenas(dezenas_sorteadas)
     vencedoras = []
-    for certificado, mask in cartelas:
+    for certificado, numero_sorte, mask in cartelas:
         if mask & mask_sorteadas == mask:
-            vencedoras.append(CartelaVencedora(certificado=certificado, dezenas=dezenas_de_mask(mask)))
+            vencedoras.append(
+                CartelaVencedora(certificado=certificado, numero_sorte=numero_sorte,
+                                 dezenas=dezenas_de_mask(mask))
+            )
     return vencedoras
 
 
 def validar_extracao(vencedoras: List[CartelaVencedora], gabarito: list) -> dict:
-    """Compara os certificados calculados com os registros D (prêmios principais) da
-    própria Ata de Sorteio, usados como gabarito.
+    """Compara os CERTIFICADOS apurados pelo programa com os certificados que constam
+    oficialmente nos registros D (prêmios principais) da Ata de Sorteio.
 
-    Cada registro do gabarito traz dois identificadores (certificado e proposta/número
-    da sorte) que, dependendo do arquivo, podem ser iguais ou diferentes — o que bate
-    com o certificado do arquivo de comercializados varia. Por isso um registro do
-    gabarito conta como "encontrado" se QUALQUER um dos dois aparecer entre os
-    certificados calculados.
+    Comparação estrita certificado ↔ certificado: um certificado do gabarito é
+    considerado "encontrado" somente se o mesmo certificado aparecer entre as cartelas
+    vencedoras calculadas. (O número da sorte é apenas exibido nos resultados, não entra
+    nesta validação — decidido assim porque a Ata pode apontar um giro diferente do que
+    vence pela regra das dezenas.)
     """
-    calculados = {v.certificado for v in vencedoras}
-    esperados = {g.certificado for g in gabarito} | {g.numero_sorte for g in gabarito}
-    nao_encontrados = [g for g in gabarito if g.certificado not in calculados and g.numero_sorte not in calculados]
-    faltando = sorted({g.certificado for g in nao_encontrados})
-    extras = sorted(calculados - esperados)
+    certs_calc = {v.certificado for v in vencedoras}
+    certs_ata = {g.certificado for g in gabarito}
+    cert_faltando = sorted(certs_ata - certs_calc)   # certificado da Ata sem ganhador apurado
+    cert_extra = sorted(certs_calc - certs_ata)      # ganhador apurado fora da Ata
     return {
-        "ok": not faltando and not extras,
-        "faltando": faltando,
-        "extras": extras,
-        "qtd_esperada": len(gabarito),
-        "qtd_calculada": len(calculados),
+        "ok": not cert_faltando and not cert_extra,
+        "cert_faltando": cert_faltando,
+        "cert_extra": cert_extra,
+        "qtd_esperada": len(certs_ata),
+        "qtd_calculada": len(certs_calc),
     }
