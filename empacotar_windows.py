@@ -17,7 +17,9 @@ não precisa de internet, de direitos de administrador nem de Python instalado.
 """
 from __future__ import annotations
 
+import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -67,10 +69,10 @@ echo Instalacao concluida.
 echo.
 
 :rodar
-echo Iniciando o app... O navegador abrira automaticamente em instantes.
+echo Iniciando o app... O navegador abrira automaticamente quando estiver pronto.
+echo Se nao abrir, acesse manualmente: http://localhost:%PORTA%
 echo Para encerrar, feche esta janela (ou pressione Ctrl+C).
 echo.
-start "" cmd /c "timeout /t 3 /nobreak >nul & start http://localhost:%PORTA%"
 "%PY%" -m streamlit run app\app.py --server.port %PORTA%
 pause
 """
@@ -79,15 +81,20 @@ LEIAME = """APURACAO DE SORTEIO - PACOTE AUTOCONTIDO PARA WINDOWS
 ======================================================
 
 COMO USAR
-1. Copie a pasta "ApuracaoSorteio" inteira para o computador (ex: Documentos).
+1. Copie a pasta "ApuracaoSorteio" inteira para o computador. Prefira um
+   caminho curto e sem acentos (ex: C:\\ApuracaoSorteio) para evitar o limite
+   de tamanho de caminho do Windows.
 2. De um duplo clique em "Iniciar Apuracao.bat".
    - Na primeira execucao, o app instala seus componentes (leva ~1 minuto,
      sem precisar de internet nem de administrador).
+   - Se o Windows mostrar um aviso azul do "Windows protegeu o computador"
+     (SmartScreen), clique em "Mais informacoes" e depois "Executar assim mesmo".
 3. O navegador abre automaticamente em http://localhost:8510 com o app.
+   Se nao abrir sozinho, digite esse endereco no navegador.
 4. Para encerrar o app, feche a janela preta (prompt de comando).
 
 OBSERVACOES
-- O app roda 100%% local: aceita conexoes apenas do proprio computador
+- O app roda 100% local: aceita conexoes apenas do proprio computador
   (localhost) e nao envia nenhum dado para fora.
 - Os arquivos de sorteio/comercializados podem ser indicados por upload
   ou apontando a pasta onde eles estao.
@@ -99,6 +106,69 @@ OBSERVACOES
 def baixar(url: str, destino: str) -> None:
     print(f"Baixando {url} ...")
     urllib.request.urlretrieve(url, destino)
+
+
+def _dependencias_faltando_no_windows(wheels_dir: str) -> set:
+    """`pip download` avalia marcadores de ambiente (platform_system, sys_platform,
+    os_name) usando o Python que RODA o pip — não o alvo (win_amd64) — mesmo com
+    --platform/--python-version. Por isso dependências condicionais por plataforma
+    (ex: watchdog só fora do macOS, colorama só no Windows) somem silenciosamente
+    ao empacotar a partir de um Mac. Esta função escaneia os .whl já baixados,
+    procura esse tipo de marcador e retorna os nomes de pacote que provavelmente
+    são necessários no Windows e ainda não foram baixados.
+    """
+    ja_baixados = {
+        os.path.basename(w).split("-")[0].lower().replace("_", "-")
+        for w in glob.glob(os.path.join(wheels_dir, "*.whl"))
+    }
+    faltando = set()
+    for caminho in glob.glob(os.path.join(wheels_dir, "*.whl")):
+        try:
+            with zipfile.ZipFile(caminho) as z:
+                meta_name = next((n for n in z.namelist() if n.endswith(".dist-info/METADATA")), None)
+                if not meta_name:
+                    continue
+                conteudo = z.read(meta_name).decode("utf-8", errors="ignore")
+        except (zipfile.BadZipFile, KeyError):
+            continue
+        for linha in conteudo.splitlines():
+            if not linha.startswith("Requires-Dist:"):
+                continue
+            if "extra ==" in linha or "extra=='" in linha.replace(" ", ""):
+                continue  # dependência de um "extra" opcional que não pedimos (ex: cudf)
+            if not any(m in linha for m in ("platform_system", "sys_platform", "os_name")):
+                continue
+            # marcador que sugere "vale para Windows": menciona Windows/win32/nt,
+            # ou exclui explicitamente outro SO (ex: != "Darwin", != "Linux")
+            if not ("Windows" in linha or "win32" in linha or "'nt'" in linha or '"nt"' in linha or "!=" in linha):
+                continue
+            nome = linha[len("Requires-Dist:"):].split(";")[0].strip()
+            nome = re.split(r"[\[<>=! ]", nome, maxsplit=1)[0].strip()
+            nome_normalizado = nome.lower().replace("_", "-")
+            if nome and nome_normalizado not in ja_baixados:
+                faltando.add(nome)
+    return faltando
+
+
+def _garantir_dependencias_windows(wheels_dir: str) -> None:
+    """Repete o escaneamento + download até nenhuma dependência condicional nova
+    aparecer (uma dependência recém-baixada pode, por sua vez, ter as suas)."""
+    for _ in range(5):
+        faltando = _dependencias_faltando_no_windows(wheels_dir)
+        if not faltando:
+            return
+        print(f"Dependências condicionais por plataforma encontradas: {sorted(faltando)}")
+        subprocess.run(
+            [
+                sys.executable, "-m", "pip", "download", *sorted(faltando),
+                "-d", wheels_dir,
+                "--platform", "win_amd64",
+                "--python-version", PY_TAG,
+                "--only-binary=:all:",
+            ],
+            check=True,
+        )
+    raise RuntimeError("Muitas rodadas de dependências condicionais — verifique manualmente.")
 
 
 def montar() -> None:
@@ -144,6 +214,8 @@ def montar() -> None:
         [sys.executable, "-m", "pip", "download", "pip", "-d", wheels, "--only-binary=:all:"],
         check=True,
     )
+
+    _garantir_dependencias_windows(wheels)
 
     # 4. Código do app (sem caches/estado local)
     app_destino = os.path.join(PACOTE, "app")

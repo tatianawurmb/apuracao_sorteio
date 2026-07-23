@@ -46,10 +46,10 @@ if errorlevel 1 (
 :deps_ok
 
 echo.
-echo Iniciando o app... O navegador abrira automaticamente em instantes.
+echo Iniciando o app... O navegador abrira automaticamente quando estiver pronto.
+echo Se nao abrir, acesse manualmente: http://localhost:%PORTA%
 echo Para encerrar, feche esta janela (ou pressione Ctrl+C).
 echo.
-start "" cmd /c "timeout /t 3 /nobreak >nul & start http://localhost:%PORTA%"
 "%VPY%" -m streamlit run apuracao_app\app.py --server.port %PORTA%
 pause
 exit /b 0
