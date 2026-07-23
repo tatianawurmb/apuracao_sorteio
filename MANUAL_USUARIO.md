@@ -17,14 +17,18 @@ precisa de internet para funcionar.
 1. Copie a pasta **`ApuracaoSorteio`** (descompactada do arquivo `ApuracaoSorteio.zip`)
    para o computador. Prefira um caminho **curto e sem acentos**, por exemplo
    `C:\ApuracaoSorteio`, para evitar o limite de tamanho de caminho do Windows.
-2. Dê um **duplo clique** em **`Iniciar Apuracao.bat`**.
-3. Na **primeira execução**, o app instala seus componentes automaticamente
-   (leva cerca de 1 minuto, **sem precisar de internet nem de administrador**).
+2. Para **abrir** o app: dê um **duplo clique** em **`Iniciar Apuracao.bat`**.
+3. Na **primeira execução**, aparece uma janela instalando os componentes
+   (leva cerca de 1 minuto, **sem precisar de internet nem de administrador**) —
+   depois ela fecha sozinha.
    - Se o Windows exibir o aviso azul **"O Windows protegeu o computador"**
      (SmartScreen), clique em **"Mais informações"** e depois em **"Executar assim mesmo"**.
-4. O navegador abre sozinho em **http://localhost:8510** com o aplicativo.
-   Se não abrir, digite esse endereço manualmente no navegador.
-5. Para **encerrar** o app, feche a janela preta (prompt de comando).
+4. O navegador abre sozinho em **http://localhost:8510** com o aplicativo, que fica
+   rodando em segundo plano **sem manter nenhuma janela aberta**. Se o navegador não
+   abrir, digite esse endereço — ou dê outro duplo clique no `Iniciar Apuracao.bat`,
+   que apenas reabre a página quando o app já está ativo.
+5. Para **encerrar** o app: dê um duplo clique em **`Encerrar Apuracao.bat`**.
+   O app continua ativo até você encerrar (ou reiniciar o computador).
 
 Nas próximas vezes, basta dar duplo clique no `Iniciar Apuracao.bat` de novo —
 a instalação só acontece uma vez.
@@ -82,8 +86,8 @@ Em seguida, **um bloco para cada prêmio** mostra:
 - A quantidade de **dezenas sorteadas** e a lista completa delas;
 - Quantas **propostas premiadas** o arquivo indicava e quantas **cartelas vencedoras**
   o programa calculou;
-- A **tabela dos certificados contemplados**, com o número do certificado e as
-  20 dezenas de cada cartela vencedora;
+- A **tabela dos contemplados**, com o número do certificado, o número da sorte do
+  giro vencedor e as 20 dezenas de cada cartela;
 - O resultado da **validação cruzada** (veja abaixo).
 
 ### Passo 4 — Exportar
@@ -96,8 +100,9 @@ certificados contemplados de cada prêmio.
 
 ## 3. Entendendo a validação cruzada
 
-Para cada prêmio, o app compara os certificados que **ele calculou** com os que constam
-oficialmente na **Ata de Sorteio**:
+Para cada prêmio, o app compara os **certificados** que ele calculou com os que constam
+oficialmente na **Ata de Sorteio** (o número da sorte é apenas informativo, não entra
+na validação):
 
 - ✅ **Verde — "bate com o gabarito"**: o cálculo do programa coincide exatamente com a
   Ata. Resultado confiável.
