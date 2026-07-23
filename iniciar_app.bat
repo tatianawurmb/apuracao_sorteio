@@ -4,6 +4,13 @@ cd /d "%~dp0"
 set "PORTA=8510"
 set "VENV=%~dp0.venv"
 
+rem ---- Se o app ja esta rodando, apenas abre o navegador e sai ----
+netstat -ano | findstr /c:":%PORTA%" | findstr /c:"LISTENING" >nul 2>nul
+if not errorlevel 1 (
+    start "" http://localhost:%PORTA%
+    exit /b 0
+)
+
 echo ============================================
 echo   Apuracao de Sorteio - Iniciando o app
 echo ============================================
@@ -45,13 +52,26 @@ if errorlevel 1 (
 )
 :deps_ok
 
-echo.
-echo Iniciando o app... O navegador abrira automaticamente quando estiver pronto.
-echo Se nao abrir, acesse manualmente: http://localhost:%PORTA%
-echo Para encerrar, feche esta janela (ou pressione Ctrl+C).
-echo.
-"%VPY%" -m streamlit run apuracao_app\app.py --server.port %PORTA%
-pause
+rem ---- Inicia o servidor OCULTO (sem janela) via VBScript e fecha esta janela ----
+rem Gera o VBScript ao lado do .bat (usa o Python do ambiente virtual).
+echo Iniciando o app... aguarde alguns segundos.
+set "VBS=%~dp0_servidor_dev.vbs"
+> "%VBS%" echo Set sh = CreateObject("WScript.Shell")
+>> "%VBS%" echo sh.CurrentDirectory = "%~dp0"
+>> "%VBS%" echo sh.Run "cmd /c "".venv\Scripts\python.exe"" -m streamlit run apuracao_app\app.py --server.port %PORTA% ^> app_ultimo_log.txt 2^>^&1", 0, False
+start "" "%VBS%"
+
+rem ---- Aguarda o servidor responder (ate ~20s) ----
+set /a TENT=0
+:esperar
+timeout /t 1 /nobreak >nul 2>nul
+netstat -ano | findstr /c:":%PORTA%" | findstr /c:"LISTENING" >nul 2>nul
+if not errorlevel 1 exit /b 0
+set /a TENT+=1
+if %TENT% LSS 20 goto :esperar
+
+rem ---- Nao subiu (scripts .vbs podem estar bloqueados). Fallback: janela minimizada ----
+start "Apuracao de Sorteio" /min "%VPY%" -m streamlit run apuracao_app\app.py --server.port %PORTA%
 exit /b 0
 
 :sem_python

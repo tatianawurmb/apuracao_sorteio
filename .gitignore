@@ -12,6 +12,10 @@ __pycache__/
 *.pyc
 .venv/
 
+# Artefatos de runtime do launcher Windows (gerados ao rodar)
+_servidor_dev.vbs
+app_ultimo_log.txt
+
 # Config local do usuário (pasta lembrada entre execuções)
 apuracao_app/.last_folder.json
 .apuracao_sorteio.json

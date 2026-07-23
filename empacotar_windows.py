@@ -42,16 +42,21 @@ BAT_CONTEUDO = r"""@echo off
 setlocal
 cd /d "%~dp0"
 set "PORTA=8510"
-set "PY=%~dp0python\python.exe"
+set "PY=python\python.exe"
 
+rem --- Se o app ja esta rodando, apenas abre o navegador e sai ---
+netstat -ano | findstr /c:":%PORTA%" | findstr /c:"LISTENING" >nul 2>nul
+if not errorlevel 1 (
+    start "" http://localhost:%PORTA%
+    exit /b 0
+)
+
+rem --- Primeira execucao: instalar componentes (janela visivel) ---
+if exist "python\Lib\site-packages\streamlit" goto :iniciar
 echo ============================================
-echo   Apuracao de Sorteio
+echo   Apuracao de Sorteio - primeira execucao
 echo ============================================
-echo.
-
-if exist "python\Lib\site-packages\streamlit" goto :rodar
-
-echo Primeira execucao: instalando componentes (nao precisa de internet)...
+echo Instalando componentes (nao precisa de internet)...
 set "PIPWHL="
 for %%W in ("wheels\pip-*.whl") do set "PIPWHL=%%~W"
 if not defined PIPWHL (
@@ -65,16 +70,48 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo Instalacao concluida.
-echo.
 
-:rodar
-echo Iniciando o app... O navegador abrira automaticamente quando estiver pronto.
-echo Se nao abrir, acesse manualmente: http://localhost:%PORTA%
-echo Para encerrar, feche esta janela (ou pressione Ctrl+C).
-echo.
-"%PY%" -m streamlit run app\app.py --server.port %PORTA%
-pause
+:iniciar
+echo Iniciando o app... aguarde alguns segundos.
+rem --- Tenta iniciar OCULTO (sem janela) via VBScript ---
+start "" "%~dp0_servidor.vbs"
+
+rem --- Aguarda o servidor responder (ate ~20s) ---
+set /a TENT=0
+:esperar
+timeout /t 1 /nobreak >nul 2>nul
+netstat -ano | findstr /c:":%PORTA%" | findstr /c:"LISTENING" >nul 2>nul
+if not errorlevel 1 exit /b 0
+set /a TENT+=1
+if %TENT% LSS 20 goto :esperar
+
+rem --- Nao subiu (scripts .vbs podem estar bloqueados). Fallback: janela minimizada ---
+start "Apuracao de Sorteio" /min "%PY%" -m streamlit run app\app.py --server.port %PORTA%
+exit /b 0
+"""
+
+VBS_CONTEUDO = """' Inicia o servidor do app oculto (sem janela) e desanexado desta janela.
+Set sh = CreateObject("WScript.Shell")
+base = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\\"))
+sh.CurrentDirectory = base
+' 0 = janela oculta ; False = nao espera terminar. A saida vai para um log.
+sh.Run "cmd /c python\\python.exe -m streamlit run app\\app.py --server.port 8510 > app_ultimo_log.txt 2>&1", 0, False
+' O proprio Streamlit abre o navegador quando o servidor fica pronto.
+"""
+
+ENCERRAR_CONTEUDO = r"""@echo off
+set "PORTA=8510"
+set "ACHOU="
+rem So encerra se o processo na porta for Python (o app), nunca outro programa.
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr /c:":%PORTA%" ^| findstr /c:"LISTENING"') do (
+    tasklist /fi "pid eq %%P" 2>nul | findstr /i "python.exe" >nul && taskkill /F /PID %%P >nul 2>nul && set "ACHOU=1"
+)
+if defined ACHOU (
+    echo Apuracao de Sorteio encerrada.
+) else (
+    echo O app nao estava em execucao.
+)
+timeout /t 2 >nul
 """
 
 LEIAME = """APURACAO DE SORTEIO - PACOTE AUTOCONTIDO PARA WINDOWS
@@ -84,22 +121,29 @@ COMO USAR
 1. Copie a pasta "ApuracaoSorteio" inteira para o computador. Prefira um
    caminho curto e sem acentos (ex: C:\\ApuracaoSorteio) para evitar o limite
    de tamanho de caminho do Windows.
-2. De um duplo clique em "Iniciar Apuracao.bat".
-   - Na primeira execucao, o app instala seus componentes (leva ~1 minuto,
-     sem precisar de internet nem de administrador).
+2. Para ABRIR o app: de um duplo clique em "Iniciar Apuracao.bat".
+   - Na primeira execucao, aparece uma janela instalando os componentes
+     (leva ~1 minuto, sem precisar de internet nem de administrador). Depois
+     ela fecha sozinha.
    - Se o Windows mostrar um aviso azul do "Windows protegeu o computador"
      (SmartScreen), clique em "Mais informacoes" e depois "Executar assim mesmo".
 3. O navegador abre automaticamente em http://localhost:8510 com o app.
-   Se nao abrir sozinho, digite esse endereco no navegador.
-4. Para encerrar o app, feche a janela preta (prompt de comando).
+   Se nao abrir sozinho, abra o navegador e digite esse endereco (ou
+   de outro duplo clique em "Iniciar Apuracao.bat").
+4. Para ENCERRAR o app: de um duplo clique em "Encerrar Apuracao.bat".
 
 OBSERVACOES
+- O app roda em segundo plano, SEM manter nenhuma janela preta aberta.
+  Ele continua ativo ate voce usar o "Encerrar Apuracao.bat" (ou reiniciar
+  o computador).
+- Abrir o "Iniciar Apuracao.bat" de novo enquanto o app ja esta rodando
+  apenas reabre o navegador, sem iniciar uma segunda copia.
 - O app roda 100% local: aceita conexoes apenas do proprio computador
   (localhost) e nao envia nenhum dado para fora.
 - Os arquivos de sorteio/comercializados podem ser indicados por upload
   ou apontando a pasta onde eles estao.
-- Se a porta 8510 estiver em uso por outro programa, edite a linha
-  "set PORTA=8510" no arquivo .bat para outra porta (ex: 8511).
+- Se algo nao funcionar, o arquivo "app_ultimo_log.txt" (criado na pasta)
+  guarda as mensagens da ultima execucao, util para o suporte.
 """
 
 
@@ -225,11 +269,15 @@ def montar() -> None:
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".last_folder.json"),
     )
 
-    # 5. Launcher e LEIA-ME (CRLF para o Windows)
-    with open(os.path.join(PACOTE, "Iniciar Apuracao.bat"), "w", encoding="ascii", newline="\r\n") as f:
-        f.write(BAT_CONTEUDO)
-    with open(os.path.join(PACOTE, "LEIA-ME.txt"), "w", encoding="ascii", newline="\r\n") as f:
-        f.write(LEIAME)
+    # 5. Launchers, VBScript e LEIA-ME (CRLF/ASCII para o Windows)
+    def escrever(nome, conteudo):
+        with open(os.path.join(PACOTE, nome), "w", encoding="ascii", newline="\r\n") as f:
+            f.write(conteudo)
+
+    escrever("Iniciar Apuracao.bat", BAT_CONTEUDO)
+    escrever("_servidor.vbs", VBS_CONTEUDO)
+    escrever("Encerrar Apuracao.bat", ENCERRAR_CONTEUDO)
+    escrever("LEIA-ME.txt", LEIAME)
 
     # 6. Zip final
     zip_final = os.path.join(DIST, "ApuracaoSorteio.zip")
