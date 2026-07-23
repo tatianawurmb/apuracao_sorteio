@@ -1,0 +1,22 @@
+[theme]
+base = "light"
+primaryColor = "#2563EB"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#EFF6FF"
+textColor = "#1E293B"
+font = "sans serif"
+
+[server]
+# Aceita conexões apenas do próprio computador — nunca expor na rede/VPN,
+# pois o modo "Apontar pasta" permite ler arquivos da máquina.
+address = "localhost"
+port = 8510
+headless = true
+
+[browser]
+# Não enviar estatísticas de uso para servidores externos (ambiente corporativo).
+gatherUsageStats = false
+
+[client]
+# Não exibir stack traces no navegador (vazam caminhos e código interno).
+showErrorDetails = "none"

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "apuracao-sorteio",
+      "runtimeExecutable": "/Users/tatianadevargasvonwurmb/Library/Python/3.9/bin/streamlit",
+      "runtimeArgs": ["run", "apuracao_app/app.py", "--server.port", "8501"],
+      "port": 8501
+    }
+  ]
+}

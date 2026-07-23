@@ -1,0 +1,23 @@
+# Dados reais de sorteio — contêm CPF e nomes de pessoas, nunca versionar
+*.sorteio.*.txt
+*.comercializadas.*.txt
+trica.sorteio.00393.100526/
+*.zip
+
+# Pacote Windows gerado (binários grandes, reconstruído sob demanda via empacotar_windows.py)
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Config local do usuário (pasta lembrada entre execuções)
+apuracao_app/.last_folder.json
+.apuracao_sorteio.json
+
+# macOS
+.DS_Store
+
+# Config local do Claude Code (por sessão/usuário, não é config do projeto)
+.claude/settings.local.json
